@@ -1,0 +1,778 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Simulador de Cajero Bancario — Guía Practica</title>
+  <style>
+    /* --------- Diseño limpio y responsivo --------- */
+    :root{
+      --bg: linear-gradient(135deg,#0f172a 0%, #0b3a5b 100%);
+      --card:#ffffff;
+      --accent:#2b9ed9;
+      --accent-dark:#167ab0;
+      --muted:#6b7280;
+      --success:#1f8a44;
+      --danger:#c53030;
+      --glass: rgba(255,255,255,0.06);
+    }
+    html,body{height:100%;margin:0;font-family:Inter,ui-sans-serif,system-ui,Arial,sans-serif;}
+    body{
+      background: var(--bg);
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      padding:24px;
+      color:#0b2336;
+    }
+    .wrap{
+      width:100%;
+      max-width:1100px;
+      display:grid;
+      grid-template-columns: 420px 1fr;
+      gap:28px;
+      align-items:start;
+    }
+    /* left column - card */
+    .card {
+      background: linear-gradient(180deg,#fff 0%, #f8fbff 100%);
+      border-radius:12px;
+      padding:20px;
+      box-shadow:0 10px 30px rgba(2,6,23,0.45);
+      min-height:560px;
+    }
+    header.app-header{
+      display:flex;align-items:center;gap:12px;margin-bottom:12px;
+    }
+    .logo {
+      width:48px;height:48px;border-radius:10px;
+      background:linear-gradient(135deg,var(--accent) 0%, var(--accent-dark) 100%);
+      display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:1.1rem;
+    }
+    h1{font-size:1.05rem;margin:0}
+    p.lead{margin:8px 0 18px;color:var(--muted);font-size:0.95rem}
+    .small{font-size:0.88rem;color:var(--muted)}
+    .input, input, select, button {
+      width:100%;box-sizing:border-box;padding:10px 12px;border-radius:8px;border:1px solid #dbe9f5;font-size:1rem;
+    }
+    label{display:block;margin:8px 0 6px;font-weight:600;color:#0b2336}
+    .muted{color:var(--muted);font-size:0.88rem}
+    .row{display:flex;gap:10px}
+    .col{flex:1}
+    button.btn {
+      background:var(--accent);color:#fff;border:none;padding:10px 12px;border-radius:8px;font-weight:700;cursor:pointer;
+    }
+    button.btn.secondary { background:#eef6fb;color:var(--accent); font-weight:700;border:2px solid var(--accent); }
+    button.btn.negative{ background:var(--danger); }
+    .nav {
+      display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;
+    }
+
+    /* right column - workspace */
+    .workspace {
+      min-height:560px;
+      background: rgba(255,255,255,0.03);
+      border-radius:12px;
+      padding:18px;
+      color:#e6f7ff;
+      box-shadow: 0 8px 30px rgba(2,6,23,0.35);
+      display:flex;
+      flex-direction:column;
+      gap:12px;
+    }
+    .panel {
+      background: linear-gradient(180deg, rgba(255,255,255,0.04), rgba(255,255,255,0.02));
+      border:1px solid rgba(255,255,255,0.03);
+      padding:12px;border-radius:10px;
+    }
+    .welcome{
+      display:flex;align-items:center;justify-content:space-between;gap:8px;
+    }
+    .balance {
+      background: linear-gradient(90deg,#072340 0%, #093a5f 100%);
+      padding:12px;border-radius:8px;color:#dff7ff;font-weight:700;text-align:center;
+    }
+    .grid {
+      display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:10px;
+    }
+    .amount-btn {
+      background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.04);padding:10px;border-radius:8px;color:#e6f7ff;font-weight:700;cursor:pointer;
+    }
+    .amount-btn:hover{transform:translateY(-3px)}
+    .history { max-height:260px; overflow:auto; padding:6px; display:flex;flex-direction:column;gap:8px; }
+    .tx {
+      background: linear-gradient(90deg, rgba(0,0,0,0.12), rgba(255,255,255,0.02));
+      padding:8px;border-radius:8px;border:1px solid rgba(255,255,255,0.03);
+      display:flex;justify-content:space-between;gap:8px;align-items:center;font-size:0.95rem;
+    }
+    .tx .meta{color:#cfeffb;font-size:0.88rem}
+    .tx .amt{font-weight:800}
+    .helper{color:#b5dfe9;font-size:0.9rem}
+    .notice{padding:8px;border-radius:8px;background:rgba(255,255,255,0.02);color:#dff7ff;font-weight:700}
+
+    footer { color:#8fbfd7;font-size:0.85rem;text-align:center;margin-top:auto; }
+
+    @media (max-width:980px){
+      .wrap{grid-template-columns:1fr; padding-bottom:80px}
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <!-- LEFT: Controls (Registration / Login / Menu) -->
+    <div class="card" aria-live="polite">
+
+      <div class="app">
+        <div class="app-header">
+          <div class="logo">BV</div>
+          <div>
+            <h1>Banco Virtual — Simulador ATM</h1>
+            <p class="lead">Implementación con VECTORES — retiros, depósitos, pagos, transferencias e historial.</p>
+          </div>
+        </div>
+
+        <!-- --- LOGIN --- -->
+        <div id="panel-login">
+          <label for="dniLogin">DNI</label>
+          <input id="dniLogin" class="input" placeholder="Ej: 0912345678" />
+          <label for="pinLogin">PIN (4 dígitos)</label>
+          <input id="pinLogin" class="input" placeholder="••••" maxlength="4" />
+          <div style="display:flex;gap:8px;margin-top:10px">
+            <button id="btnLogin" class="btn">Iniciar sesión</button>
+            <button id="btnShowRegister" class="btn secondary">Registrar</button>
+          </div>
+          <p class="muted" style="margin-top:10px">Si ya existe cuenta, use DNI y PIN para iniciar.</p>
+        </div>
+
+        <!-- --- REGISTER --- -->
+        <div id="panel-register" style="display:none;margin-top:12px">
+          <label for="dniReg">DNI (6-10 dígitos)</label>
+          <input id="dniReg" class="input" placeholder="Eg: 0912345678" />
+          <label for="nameReg">Nombre completo</label>
+          <input id="nameReg" class="input" placeholder="Nombres y Apellidos" />
+          <label for="capitalReg">Capital inicial</label>
+          <input id="capitalReg" class="input" type="number" placeholder="Ej: 1000" />
+          <label for="pinReg">PIN (4 dígitos)</label>
+          <input id="pinReg" class="input" maxlength="4" placeholder="1234" />
+          <div style="display:flex;gap:8px;margin-top:10px">
+            <button id="btnRegister" class="btn">Crear cuenta</button>
+            <button id="btnCancelRegister" class="btn secondary">Cancelar</button>
+          </div>
+          <p class="muted" style="margin-top:8px">El DNI debe ser único; PIN: 4 dígitos.</p>
+        </div>
+
+        <!-- --- MENU (visible cuando se inicia sesión) --- -->
+        <div id="panel-menu" style="display:none;margin-top:12px">
+          <div style="display:flex;justify-content:space-between;align-items:center">
+            <div>
+              <div class="small">Usuario</div>
+              <div id="displayName" style="font-weight:800;font-size:1.05rem">-</div>
+            </div>
+            <div>
+              <div class="small">Saldo</div>
+              <div id="displayBalance" style="font-weight:900;font-size:1.05rem">$0.00</div>
+            </div>
+          </div>
+          <div class="nav" style="margin-top:14px">
+            <button id="navRetiro" class="btn secondary">Retirar</button>
+            <button id="navDeposito" class="btn secondary">Depositar</button>
+            <button id="navPago" class="btn secondary">Pagar servicio</button>
+            <button id="navTransfer" class="btn secondary">Transferir</button>
+            <button id="navConsulta" class="btn secondary">Consultar</button>
+            <button id="btnLogout" class="btn negative">Cerrar sesión</button>
+          </div>
+          <p class="muted" style="margin-top:10px">Seleccione una operación desde el panel derecho o arriba.</p>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- RIGHT: Workspace (panels for operations, history, etc.) -->
+    <div class="workspace">
+
+      <!-- Welcome / Overview -->
+      <div id="panel-overview" class="panel">
+        <div class="welcome">
+          <div>
+            <div style="font-size:1.1rem;font-weight:800">Panel del Cajero</div>
+            <div class="helper">Selecciona una operación en la izquierda. Todo se guarda con VECTORES.</div>
+          </div>
+          <div class="balance">
+            Saldo: <span id="balTop">$0.00</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- RETIRO -->
+      <div id="panel-retiro" class="panel" style="display:none">
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <div style="font-weight:800">Retirar Efectivo</div>
+          <div class="small">Mínimo $10 — múltiplos de $10</div>
+        </div>
+        <div class="grid" style="margin-top:12px">
+          <button class="amount-btn" data-value="10">$10</button>
+          <button class="amount-btn" data-value="20">$20</button>
+          <button class="amount-btn" data-value="30">$30</button>
+          <button class="amount-btn" data-value="50">$50</button>
+          <button class="amount-btn" data-value="80">$80</button>
+          <button class="amount-btn" data-value="100">$100</button>
+        </div>
+        <label style="margin-top:12px">Monto personalizado</label>
+        <input id="inputRetiro" type="number" class="input" placeholder="Ej: 150" />
+        <div style="display:flex;gap:8px;margin-top:8px">
+          <button id="btnDoRetiro" class="btn">Retirar</button>
+          <button id="btnCancelRetiro" class="btn secondary">Cancelar</button>
+        </div>
+        <div style="margin-top:12px" class="notice">Nota: se valida saldo y múltiplos de 10.</div>
+      </div>
+
+      <!-- DEPOSITO -->
+      <div id="panel-deposito" class="panel" style="display:none">
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <div style="font-weight:800">Depósito de Efectivo</div>
+        </div>
+        <div class="grid" style="margin-top:12px">
+          <button class="amount-btn" data-value="10">$10</button>
+          <button class="amount-btn" data-value="20">$20</button>
+          <button class="amount-btn" data-value="30">$30</button>
+          <button class="amount-btn" data-value="50">$50</button>
+          <button class="amount-btn" data-value="80">$80</button>
+          <button class="amount-btn" data-value="100">$100</button>
+        </div>
+        <label style="margin-top:12px">Monto personalizado</label>
+        <input id="inputDeposito" type="number" class="input" placeholder="Ej: 200" />
+        <div style="display:flex;gap:8px;margin-top:8px">
+          <button id="btnDoDeposito" class="btn">Depositar</button>
+          <button id="btnCancelDeposito" class="btn secondary">Cancelar</button>
+        </div>
+        <div style="margin-top:12px" class="notice">Los depósitos también deben ser múltiplos de $10.</div>
+      </div>
+
+      <!-- PAGO -->
+      <div id="panel-pago" class="panel" style="display:none">
+        <div style="font-weight:800">Pago de Servicios</div>
+        <label style="margin-top:12px">Servicio (Ej: Luz, Agua, Internet)</label>
+        <input id="inputPagoServicio" class="input" placeholder="Nombre del servicio" />
+        <label style="margin-top:8px">Monto</label>
+        <input id="inputPagoMonto" class="input" type="number" placeholder="Ej: 25" />
+        <div style="display:flex;gap:8px;margin-top:8px">
+          <button id="btnDoPago" class="btn">Pagar</button>
+          <button id="btnCancelPago" class="btn secondary">Cancelar</button>
+        </div>
+        <div style="margin-top:12px" class="notice">Se valida saldo disponible antes de procesar el pago.</div>
+      </div>
+
+      <!-- TRANSFERENCIA -->
+      <div id="panel-transfer" class="panel" style="display:none">
+        <div style="font-weight:800">Transferencia entre Clientes</div>
+        <label style="margin-top:12px">DNI destino</label>
+        <input id="inputTransferDNI" class="input" placeholder="DNI destinatario" />
+        <label style="margin-top:8px">Monto</label>
+        <input id="inputTransferMonto" class="input" type="number" placeholder="Ej: 100" />
+        <div style="display:flex;gap:8px;margin-top:8px">
+          <button id="btnDoTransfer" class="btn">Transferir</button>
+          <button id="btnCancelTransfer" class="btn secondary">Cancelar</button>
+        </div>
+        <div style="margin-top:12px" class="notice">Se registran movimientos para emisor y receptor.</div>
+      </div>
+
+      <!-- CONSULTA (saldo + últimos 5 movimientos) -->
+      <div id="panel-consulta" class="panel" style="display:none">
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <div style="font-weight:800">Consulta de Saldo y Movimientos</div>
+          <div class="small">Últimos 5 movimientos</div>
+        </div>
+        <div style="margin-top:12px">
+          <div class="helper">Saldo actual:</div>
+          <div style="font-weight:900;font-size:1.15rem;margin-top:4px" id="consultaSaldo">$0.00</div>
+        </div>
+        <div style="margin-top:12px" class="history" id="historyList">
+          <!-- movimientos se renderizan aquí -->
+        </div>
+      </div>
+
+      <footer>Simulador Educativo • Guía Práctica — Arreglos y Matrices</footer>
+
+    </div>
+
+  </div>
+
+<script>
+/* 
+  IMPLEMENTACIÓN (según guía)
+  - Estructuras (vectores): clientes y movimientos
+  - clientes: [dni, nombre, saldo, pin]
+  - movimientos: [dni, tipo, descripcion, monto, fecha]
+  - No se usan objetos para la lógica principal.
+  - Se serializan los arrays en localStorage para persistencia.
+*/
+
+/* ------------------------
+   CONSTANTES / SELECTORES
+   ------------------------ */
+const $ = id => document.getElementById(id);
+
+// Panels & controls
+const panelLogin = $('panel-login');
+const panelRegister = $('panel-register');
+const panelMenu = $('panel-menu');
+
+const displayName = $('displayName');
+const displayBalance = $('displayBalance');
+const balTop = $('balTop');
+
+const panelRetiro = $('panel-retiro');
+const panelDeposito = $('panel-deposito');
+const panelPago = $('panel-pago');
+const panelTransfer = $('panel-transfer');
+const panelConsulta = $('panel-consulta');
+
+const historyList = $('historyList');
+
+/* ------------------------
+   ESTRUCTURAS (VECTORES)
+   ------------------------ */
+/*
+  clientes = [
+     [dni (string), nombre (string), saldo (number), pin (string)],
+     ...
+  ]
+
+  movimientos = [
+     [dni (string), tipo (string), descripcion (string), monto (number), fecha (string)],
+     ...
+  ]
+*/
+
+// Intentamos cargar desde localStorage (si existe); si no, inicializamos con datos de ejemplo
+let clientes = JSON.parse(localStorage.getItem('clientesATM') || 'null');
+let movimientos = JSON.parse(localStorage.getItem('movimientosATM') || 'null');
+
+if (!Array.isArray(clientes)) {
+  // Datos iniciales de ejemplo (puedes eliminarlos luego)
+  clientes = [
+    ['0987654321','Juan Pérez',1500,'1234'],
+    ['0912345678','María González',2500,'4321'],
+    ['0923456789','Carlos López',800,'5678']
+  ];
+  movimientos = [];
+  persistir();
+}
+
+let usuarioActual = null; // guardamos DNI del usuario en sesión
+
+/* ------------------------
+   UTILIDADES
+   ------------------------ */
+
+// Persistir vectores en localStorage (serializamos el array)
+function persistir(){
+  localStorage.setItem('clientesATM', JSON.stringify(clientes));
+  localStorage.setItem('movimientosATM', JSON.stringify(movimientos));
+}
+
+// Buscar índice de cliente por DNI; devuelve -1 si no existe
+function indiceClientePorDNI(dni){
+  for (let i = 0; i < clientes.length; i++){
+    if (clientes[i][0] === dni) return i;
+  }
+  return -1;
+}
+
+// Registrar un movimiento en el vector movimientos
+function registrarMovimiento(dni, tipo, descripcion, monto){
+  const fecha = new Date().toLocaleString('es-EC');
+  movimientos.unshift([dni, tipo, descripcion, Number(monto), fecha]);
+  persistir();
+}
+
+// Formatea número a moneda con 2 decimales
+function fmt(n){ return Number(n).toFixed(2); }
+
+/* ------------------------
+   VALIDACIONES
+   ------------------------ */
+
+// DNI: numérico y 6-10 dígitos
+function validarDNI(dni){
+  return /^\d{6,10}$/.test(dni);
+}
+// PIN: exactamente 4 dígitos numéricos
+function validarPIN(pin){
+  return /^\d{4}$/.test(pin);
+}
+// monto: positivo y múltiplo de 10
+function validarMontoMultiplo10(monto){
+  return Number.isFinite(monto) && monto > 0 && monto % 10 === 0;
+}
+
+/* ------------------------
+   MANEJO DE PANTALLAS
+   ------------------------ */
+
+function ocultarTodosPanels(){
+  [panelLogin, panelRegister, panelMenu].forEach(p => p.style.display = 'none');
+  [panelRetiro, panelDeposito, panelPago, panelTransfer, panelConsulta].forEach(p => p.style.display='none');
+}
+
+function mostrarLogin(){
+  ocultarTodosPanels();
+  panelLogin.style.display = 'block';
+}
+function mostrarRegister(){
+  ocultarTodosPanels();
+  panelRegister.style.display = 'block';
+}
+function mostrarMenu(){
+  ocultarTodosPanels();
+  panelMenu.style.display = 'block';
+}
+function mostrarPanelRetiro(){
+  ocultarTodosPanels();
+  panelRetiro.style.display = 'block';
+}
+function mostrarPanelDeposito(){
+  ocultarTodosPanels();
+  panelDeposito.style.display = 'block';
+}
+function mostrarPanelPago(){
+  ocultarTodosPanels();
+  panelPago.style.display = 'block';
+}
+function mostrarPanelTransfer(){
+  ocultarTodosPanels();
+  panelTransfer.style.display = 'block';
+}
+function mostrarPanelConsulta(){
+  ocultarTodosPanels();
+  panelConsulta.style.display = 'block';
+}
+
+/* ------------------------
+   EVENTOS - LOGIN / REGISTRO
+   ------------------------ */
+
+// Login
+$('btnLogin').addEventListener('click', function(){
+  const dni = $('dniLogin').value.trim();
+  const pin = $('pinLogin').value.trim();
+
+  if (!validarDNI(dni)){ alert('DNI inválido. Debe tener entre 6 y 10 dígitos'); return; }
+  if (!validarPIN(pin)){ alert('PIN inválido. Debe tener exactamente 4 dígitos'); return; }
+
+  const idx = indiceClientePorDNI(dni);
+  if (idx === -1){ alert('DNI no registrado'); return; }
+  if (clientes[idx][3] !== pin){ alert('PIN incorrecto'); return; }
+
+  // inicio sesión
+  usuarioActual = dni;
+  actualizarUITrasLogin();
+  mostrarMenu();
+});
+
+// Mostrar registro
+$('btnShowRegister').addEventListener('click', function(){
+  mostrarRegister();
+});
+
+// Cancelar registro -> volver login
+$('btnCancelRegister').addEventListener('click', function(){
+  mostrarLogin();
+});
+
+// Crear cuenta (registro)
+$('btnRegister').addEventListener('click', function(){
+  const dni = $('dniReg').value.trim();
+  const nombre = $('nameReg').value.trim();
+  const capital = Number($('capitalReg').value);
+  const pin = $('pinReg').value.trim();
+
+  // Validaciones según guía
+  if (!validarDNI(dni)){ alert('DNI inválido. Debe ser numérico (6-10 dígitos).'); return; }
+  if (indiceClientePorDNI(dni) !== -1){ alert('DNI ya existe en el sistema.'); return; }
+  if (!nombre){ alert('Ingrese nombre completo.'); return; }
+  if (!validarPIN(pin)){ alert('PIN inválido. Debe tener exactamente 4 dígitos numéricos.'); return; }
+  if (isNaN(capital) || capital < 0){ alert('Capital inicial inválido.'); return; }
+
+  // Añadimos cliente como sub-arreglo: [dni, nombre, saldo, pin]
+  clientes.push([dni, nombre, Number(capital), pin]);
+
+  // registrar movimiento inicial si capital > 0
+  if (capital > 0){
+    registrarMovimiento(dni, 'deposito', 'Capital inicial', capital);
+  } else {
+    persistir(); // persiste clientes aunque capital sea 0
+  }
+
+  // limpiar campos
+  $('dniReg').value = '';
+  $('nameReg').value = '';
+  $('capitalReg').value = '';
+  $('pinReg').value = '';
+
+  alert('Registro exitoso. Ahora inicie sesión con su DNI y PIN.');
+  mostrarLogin();
+});
+
+/* ------------------------
+   UI Después de login
+   ------------------------ */
+function actualizarUITrasLogin(){
+  if (!usuarioActual) return;
+  const idx = indiceClientePorDNI(usuarioActual);
+  if (idx === -1) return;
+  const nombre = clientes[idx][1];
+  const saldo = clientes[idx][2];
+
+  displayName.textContent = nombre;
+  displayBalance.textContent = '$' + fmt(saldo);
+  balTop.textContent = '$' + fmt(saldo);
+
+  // mostrar últimos movimientos en panel consulta si está visible
+  if (panelConsulta.style.display !== 'none') renderHistorial(5);
+}
+
+/* ------------------------
+   NAV del menú (botones izquierdo)
+   ------------------------ */
+
+$('navRetiro').addEventListener('click', function(){ if (!usuarioActual){ alert('Inicie sesión primero.'); return;} mostrarPanelRetiro(); });
+$('navDeposito').addEventListener('click', function(){ if (!usuarioActual){ alert('Inicie sesión primero.'); return;} mostrarPanelDeposito(); });
+$('navPago').addEventListener('click', function(){ if (!usuarioActual){ alert('Inicie sesión primero.'); return;} mostrarPanelPago(); });
+$('navTransfer').addEventListener('click', function(){ if (!usuarioActual){ alert('Inicie sesión primero.'); return;} mostrarPanelTransfer(); });
+$('navConsulta').addEventListener('click', function(){ if (!usuarioActual){ alert('Inicie sesión primero.'); return;} mostrarPanelConsulta(); });
+
+$('btnLogout').addEventListener('click', function(){
+  usuarioActual = null;
+  mostrarLogin();
+});
+
+/* ------------------------
+   BOTONES PREDEFINIDOS (delegación)
+   - Todos los botones con atributo data-value actúan sobre el input activo.
+   - Si estamos en RETIRO -> asignan a inputRetiro
+   - Si en DEPOSITO -> asignan a inputDeposito
+   ------------------------ */
+document.addEventListener('click', function(ev){
+  const t = ev.target;
+  if (!(t instanceof Element)) return;
+  const val = t.dataset && t.dataset.value;
+  if (!val) return;
+  const num = Number(val);
+  if (panelRetiro.style.display !== 'none'){
+    $('inputRetiro').value = num;
+  } else if (panelDeposito.style.display !== 'none'){
+    $('inputDeposito').value = num;
+  }
+});
+
+/* ------------------------
+   OPERACIONES: RETIRO
+   ------------------------ */
+$('btnDoRetiro').addEventListener('click', function(){
+  if (!usuarioActual){ alert('Inicie sesión.'); return; }
+  const monto = Number($('inputRetiro').value);
+  if (!validarMontoMultiplo10(monto)){ alert('El monto debe ser múltiplo de $10 y mayor que 0.'); return; }
+
+  const idx = indiceClientePorDNI(usuarioActual);
+  const saldoActual = Number(clientes[idx][2]);
+
+  if (monto > saldoActual){ alert('Saldo insuficiente.'); return; }
+
+  // procesar retiro: actualizar vector clientes (índice 2 = saldo)
+  clientes[idx][2] = Number((saldoActual - monto).toFixed(2));
+
+  // registrar movimiento
+  registrarMovimiento(usuarioActual, 'retiro', 'Retiro de efectivo', monto);
+
+  // actualizar UI en tiempo real
+  actualizarUITrasLogin();
+
+  // limpiar input y volver al menú
+  $('inputRetiro').value = '';
+  alert('Retiro exitoso. Nuevo saldo: $' + fmt(clientes[idx][2]));
+  mostrarMenu();
+});
+
+/* cancelar retiro */
+$('btnCancelRetiro').addEventListener('click', function(){
+  $('inputRetiro').value = '';
+  mostrarMenu();
+});
+
+/* ------------------------
+   OPERACIONES: DEPOSITO
+   ------------------------ */
+$('btnDoDeposito').addEventListener('click', function(){
+  if (!usuarioActual){ alert('Inicie sesión.'); return; }
+  const monto = Number($('inputDeposito').value);
+  if (!validarMontoMultiplo10(monto)){ alert('El depósito debe ser múltiplo de $10 y mayor que 0.'); return; }
+
+  const idx = indiceClientePorDNI(usuarioActual);
+  clientes[idx][2] = Number((Number(clientes[idx][2]) + monto).toFixed(2));
+  registrarMovimiento(usuarioActual,'deposito','Depósito de efectivo',monto);
+
+  persistir();
+  actualizarUITrasLogin();
+  $('inputDeposito').value = '';
+  alert('Depósito realizado. Nuevo saldo: $' + fmt(clientes[idx][2]));
+  mostrarMenu();
+});
+
+/* cancelar deposito */
+$('btnCancelDeposito').addEventListener('click', function(){
+  $('inputDeposito').value = '';
+  mostrarMenu();
+});
+
+/* ------------------------
+   OPERACIONES: PAGO SERVICIO
+   ------------------------ */
+$('btnDoPago').addEventListener('click', function(){
+  if (!usuarioActual){ alert('Inicie sesión.'); return; }
+  const servicio = $('inputPagoServicio').value.trim();
+  const monto = Number($('inputPagoMonto').value);
+
+  if (!servicio){ alert('Ingrese el nombre del servicio.'); return; }
+  if (!Number.isFinite(monto) || monto <= 0){ alert('Monto inválido.'); return; }
+
+  const idx = indiceClientePorDNI(usuarioActual);
+  const saldo = Number(clientes[idx][2]);
+  if (monto > saldo){ alert('Saldo insuficiente para el pago.'); return; }
+
+  clientes[idx][2] = Number((saldo - monto).toFixed(2));
+  registrarMovimiento(usuarioActual,'pago','Pago de ' + servicio, monto);
+  persistir();
+  actualizarUITrasLogin();
+  $('inputPagoServicio').value = '';
+  $('inputPagoMonto').value = '';
+  alert('Pago realizado. Nuevo saldo: $' + fmt(clientes[idx][2]));
+  mostrarMenu();
+});
+
+$('btnCancelPago').addEventListener('click', function(){
+  $('inputPagoServicio').value = '';
+  $('inputPagoMonto').value = '';
+  mostrarMenu();
+});
+
+/* ------------------------
+   OPERACIONES: TRANSFERENCIA
+   ------------------------ */
+$('btnDoTransfer').addEventListener('click', function(){
+  if (!usuarioActual){ alert('Inicie sesión.'); return; }
+  const destino = $('inputTransferDNI').value.trim();
+  const monto = Number($('inputTransferMonto').value);
+
+  if (!validarDNI(destino)){ alert('DNI destino inválido. Debe tener 6-10 dígitos.'); return; }
+  if (!Number.isFinite(monto) || monto <= 0){ alert('Monto inválido.'); return; }
+
+  const idxOrigen = indiceClientePorDNI(usuarioActual);
+  const idxDestino = indiceClientePorDNI(destino);
+  if (idxDestino === -1){ alert('Usuario destino no encontrado.'); return; }
+
+  if (monto > Number(clientes[idxOrigen][2])){ alert('Saldo insuficiente para transferencia.'); return; }
+
+  // realizar transferencia (actualizar saldos en vector clientes)
+  clientes[idxOrigen][2] = Number((Number(clientes[idxOrigen][2]) - monto).toFixed(2));
+  clientes[idxDestino][2] = Number((Number(clientes[idxDestino][2]) + monto).toFixed(2));
+
+  // registrar movimiento para emisor y receptor
+  registrarMovimiento(usuarioActual,'transferencia','Transferencia a ' + destino, monto);
+  movimientos.unshift([destino,'transferencia_recibida','Transferencia recibida de ' + usuarioActual, monto, new Date().toLocaleString('es-EC')]);
+  persistir();
+
+  actualizarUITrasLogin();
+  $('inputTransferDNI').value = '';
+  $('inputTransferMonto').value = '';
+  alert('Transferencia exitosa. Nuevo saldo: $' + fmt(clientes[idxOrigen][2]));
+  mostrarMenu();
+});
+
+$('btnCancelTransfer').addEventListener('click', function(){
+  $('inputTransferDNI').value = '';
+  $('inputTransferMonto').value = '';
+  mostrarMenu();
+});
+
+/* ------------------------
+   CONSULTA DE SALDO Y MOVIMIENTOS
+   - Muestra saldo y últimos 5 movimientos del cliente
+   ------------------------ */
+function renderHistorial(limit = 5){
+  historyList.innerHTML = '';
+  if (!usuarioActual) { historyList.innerHTML = '<div class="helper">Inicie sesión para ver movimientos.</div>'; return; }
+
+  const filtrados = [];
+  for (let i = 0; i < movimientos.length; i++){
+    if (movimientos[i][0] === usuarioActual) filtrados.push(movimientos[i]);
+  }
+  // Si no hay movimientos
+  if (filtrados.length === 0){
+    historyList.innerHTML = '<div class="helper">No hay movimientos registrados.</div>';
+  } else {
+    // Mostrar máximo 'limit' (movimientos ya están en orden reciente -> primero)
+    const mostrar = filtrados.slice(0, limit);
+    mostrar.forEach(m => {
+      const tx = document.createElement('div');
+      tx.className = 'tx';
+      const tipo = m[1].toUpperCase();
+      const desc = m[2];
+      const monto = Number(m[3]).toFixed(2);
+      const fecha = m[4];
+      tx.innerHTML = `<div>
+                        <div style="font-weight:800">${tipo}</div>
+                        <div class="meta">${desc}</div>
+                      </div>
+                      <div style="text-align:right">
+                        <div class="amt">$${monto}</div>
+                        <div class="meta">${fecha}</div>
+                      </div>`;
+      historyList.appendChild(tx);
+    });
+  }
+  // actualizar saldo de consulta
+  const idx = indiceClientePorDNI(usuarioActual);
+  $('consultaSaldo').textContent = '$' + fmt(clientes[idx][2]);
+}
+
+/* Cuando se abre panel consulta */
+$('navConsulta').addEventListener('click', function(){
+  if (!usuarioActual){ alert('Inicie sesión.'); return; }
+  renderHistorial(5);
+});
+
+/* showHistorial when panel visible */
+document.querySelectorAll('#navConsulta, #navDeposit, #navRetiro').forEach(()=>{}); // placeholder
+
+/* BOTONES de navegación del panel izquierdo ya mappeados arriba: 
+   navRetiro, navDeposito, navPago, navTransfer, navConsulta
+*/
+
+/* ------------------------
+   Actualizar UI (top balances) automáticamente
+   - Llamar actualizarUITrasLogin() cada vez que cambie saldo
+   ------------------------ */
+
+/* ------------------------
+   Inicialización: mostrar login y actualizar balance si hay sesión
+   ------------------------ */
+mostrarLogin();
+persistir(); // asegura que localStorage exista
+
+/* Para garantizar que el Top Balance se actualice si hay sesión persistida,
+   podríamos implementar auto-login; por seguridad no lo hacemos.
+*/
+
+/* Comentarios finales (documentación):
+   - Estructura de vectores: ver arriba.
+   - Búsqueda: la función indiceClientePorDNI recorre el vector clientes buscando el DNI y devuelve su índice.
+   - Actualización: los saldos se actualizan directamente en clientes[idx][2].
+   - Movimientos: cada registro es un sub-array añadido a movimientos con fecha 'es-EC'.
+   - Delegación de eventos: los botones con data-value usan un listener global para relleno rápido de montos.
+   - Persistencia: usamos localStorage para guardar los arrays serializados (esto no cambia la lógica interna que sigue usando vectores).
+*/
+
+</script>
+</body>
+</html>
